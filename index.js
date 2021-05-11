@@ -1,10 +1,23 @@
 const inquirer = require('inquirer');
 const exec = require('child_process').exec;
 
+// Types
 const DELETE_FLAG = '-D';
-const flags = [DELETE_FLAG];
+const REMOTE_DELETE_FLAG = '-R';
 
-const foundFlags = process.argv.find(arg => flags.find(flag => flag === arg));
+// Actions
+const deleteFlag = branchName => exec('git branch -D ' + branchName, () => console.log('Branch "' + branchName + '" has been deleted.'));
+const remoteDeleteFlag = branchName => exec('git push origin --delete ' + branchName, () => console.log('Branch "' + branchName + '" has been deleted from remote.'));
+
+const flags = [{
+	action: deleteFlag,
+	type: DELETE_FLAG,
+}, {
+	action: remoteDeleteFlag,
+	type: REMOTE_DELETE_FLAG,
+}];
+
+const findFlags = process.argv.find(arg => flags.find(flag => flag.type === arg));
 
 const prompt = branchList => ([{
 	choices: branchList,
@@ -15,22 +28,35 @@ const prompt = branchList => ([{
 }]);
 
 const processAnswers = ({ name }) => {
-	if (foundFlags === DELETE_FLAG) {
-		// Ask for confirmation
-		exec('git branch -D ' + name, () => console.log('Branch "' + name + '" has been deleted.'));
+	if (findFlags) {
+		flags.find(flag => {
+			if (flag.type === findFlags) {
+				flag.action(name);
+				return;
+			}
+		});
 		return;
 	}
 
-	exec('git checkout ' + name);
-	console.log('Changed to branch: ' + name);
+	// Default action
+	exec('git checkout ' + name.replace('*', ''), (err, out, stderr) => {
+		// This outputs normal git status, not errors
+		console.log(stderr);
+	});
 	return;
 }
 
+// Error handling (not actual handling, just logging);
 const catchError = error => {
 	console.log('error: ', error);
 }
 
-exec('git branch', (err, out, _err) => {
+// Main
+exec('git branch', (err, out, stderr) => {
+	if (stderr) {
+		console.log(stderr);
+	}
+
 	const branchList = out.replace(/ /g, '')
 		.split('\n').filter(a => a);
 
